@@ -14,7 +14,7 @@ fi
 cd "$VERSION_SHORT" || exit 1
 
 VERSION=$(grep -oP '[0-9]+\.[0-9]+\.[0-9]+' Dockerfile | head -1)
-DOCKER_REPO=factoriotools/factorio
+DOCKER_REPO=ghcr.io/jahands/factorio-docker
 
 BRANCH=${GITHUB_REF#refs/*/}
 
@@ -49,9 +49,11 @@ else
   fi
 fi
 
-# Travis gets rate limited by Docker HUB.
-if [[ ${CI:-} == true && -n ${DOCKER_PASSWORD:-} && -n ${DOCKER_USERNAME:-} ]]; then
-  echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
+# Login to GHCR for CI pushes
+if [[ ${CI:-} == true && -n ${GITHUB_TOKEN:-} ]]; then
+  echo "$GITHUB_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+elif [[ ${CI:-} == true && -n ${DOCKER_PASSWORD:-} && -n ${DOCKER_USERNAME:-} ]]; then
+  echo "$DOCKER_PASSWORD" | docker login ghcr.io -u "$DOCKER_USERNAME" --password-stdin
 fi
 
 # shellcheck disable=SC2068
@@ -71,7 +73,11 @@ if [[ $VERSION == "${BRANCH_VERSION:-}" && ${GITHUB_BASE_REF:-} == "" ]] ||
   [[ -z ${CI:-} ]]; then
 
   if [[ ${CI:-} == true ]]; then
-    echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
+    if [[ -n ${GITHUB_TOKEN:-} ]]; then
+      echo "$GITHUB_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+    else
+      echo "$DOCKER_PASSWORD" | docker login ghcr.io -u "$DOCKER_USERNAME" --password-stdin
+    fi
   fi
 
   # push a tag on a branch other than master except dependabot branches cause docker does not support /

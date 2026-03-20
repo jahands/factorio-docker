@@ -64,7 +64,7 @@ docker run -d \
   -p 27015:27015/tcp \
   -v /opt/factorio:/factorio \
   --name factorio \
-  factoriotools/factorio
+  ghcr.io/jahands/factorio-docker
 
 # Using docker-compose
 docker-compose up -d

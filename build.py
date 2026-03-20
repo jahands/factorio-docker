@@ -14,6 +14,8 @@ PLATFORMS = [
     "linux/amd64",
 ]
 
+DOCKER_IMAGE = "ghcr.io/jahands/factorio-docker"
+
 
 def create_builder(build_dir, builder_name, platform):
     check_exists_command = ["docker", "buildx", "inspect", builder_name]
@@ -27,7 +29,7 @@ def create_builder(build_dir, builder_name, platform):
 
 
 def build_and_push_multiarch(build_dir, build_args, push, builder_suffix=""):
-    builder_name = f"factoriotools{builder_suffix}-multiarch"
+    builder_name = f"factorio-docker{builder_suffix}-multiarch"
     platform = ",".join(PLATFORMS)
     create_builder(build_dir, builder_name, platform)
     build_command = ["docker", "buildx", "build", "--platform", platform, "--builder", builder_name] + build_args
@@ -52,7 +54,7 @@ def build_singlearch(build_dir, build_args, image_type="regular"):
 def push_singlearch(tags):
     for tag in tags:
         try:
-            subprocess.run(["docker", "push", f"factoriotools/factorio:{tag}"],
+            subprocess.run(["docker", "push", f"{DOCKER_IMAGE}:{tag}"],
                             check=True)
         except subprocess.CalledProcessError:
             print("Docker push failed")
@@ -64,7 +66,7 @@ def build_and_push(sha256, version, tags, push, multiarch, dockerfile="Dockerfil
     shutil.copytree("docker", build_dir)
     build_args = ["-f", dockerfile, "--build-arg", f"VERSION={version}", "--build-arg", f"SHA256={sha256}", "."]
     for tag in tags:
-        build_args.extend(["-t", f"factoriotools/factorio:{tag}"])
+        build_args.extend(["-t", f"{DOCKER_IMAGE}:{tag}"])
     
     image_type = "rootless" if "rootless" in dockerfile.lower() else "regular"
     
@@ -78,11 +80,11 @@ def build_and_push(sha256, version, tags, push, multiarch, dockerfile="Dockerfil
 
 def login():
     try:
-        username = os.environ["DOCKER_USERNAME"]
-        password = os.environ["DOCKER_PASSWORD"]
-        subprocess.run(["docker", "login", "-u", username, "-p", password], check=True)
+        username = os.environ.get("GHCR_USERNAME") or os.environ.get("GITHUB_ACTOR") or os.environ["DOCKER_USERNAME"]
+        password = os.environ.get("GHCR_PASSWORD") or os.environ.get("GITHUB_TOKEN") or os.environ["DOCKER_PASSWORD"]
+        subprocess.run(["docker", "login", "ghcr.io", "-u", username, "-p", password], check=True)
     except KeyError:
-        print("Username and password need to be given")
+        print("Registry credentials required: set GITHUB_ACTOR/GITHUB_TOKEN (Actions) or DOCKER_USERNAME/DOCKER_PASSWORD")
         exit(1)
     except subprocess.CalledProcessError:
         print("Docker login failed")
@@ -96,7 +98,7 @@ def generate_rootless_tags(original_tags):
 
 def main():
     parser = argparse.ArgumentParser(description='Build Factorio Docker images')
-    parser.add_argument('--push-tags', action='store_true', help='Push images to Docker Hub')
+    parser.add_argument('--push-tags', action='store_true', help='Push images to GHCR')
     parser.add_argument('--multiarch', action='store_true', help='Build multi-architecture images')
     parser.add_argument('--rootless', action='store_true', help='Build only rootless images')
     parser.add_argument('--both', action='store_true', help='Build both regular and rootless images')
